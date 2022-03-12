@@ -107,12 +107,14 @@ def run():
     f.close()
 
 
+
 # %%
-run()
+# run()
 
 if __name__ == "__main__":
     # execute only if run as a script
-    file_start = sys.argv[0]
-    file_end = sys.argv[1]
-    print(f'executing file {file_start} to {file_end}')
+    
+    file_start = int(sys.argv[1])
+    file_end = int(sys.argv[2])
+    print(f'executing file from {file_start} to {file_end}')
     run()
