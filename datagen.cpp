@@ -1,7 +1,6 @@
 #include <cstdio>
 #include <fstream>
 #include <iostream>
-// #include "CBS.h"
 #include <chrono>
 #include <iterator>
 #include <ostream>
@@ -18,22 +17,28 @@
 #include <vector>
 
 #include <iostream>
+#include <algorithm>    // std::min
+#include <cmath>        // std::abs
+#include <stdlib.h>
 
 #include <torch/torch.h>
 #include <torch/script.h>
-#include <iostream>
+
 
 
 using namespace std;
 
 static int MY_INF = 999999;
+static int STEP = 10;
 // static string MAP_LOC = "../datasets/map/";
 string MAP_LOC = "./";
-bool PRINT_RESULT = 0;
+bool PRINT_RESULT = 1;
 
 template <class T>
 using Map2d = vector<vector<T>>;
-// using Position = pair<size_t, size_t>;
+
+void ToFile2d(const vector<vector<int>>& vec2, const string& tensorFile);
+bool file2lines(const string& fname, vector<string>& lines);
 
 struct Position {
     size_t x;
@@ -51,8 +56,8 @@ struct Position {
 struct Agent {
     Position startpos;
     Position goalpos;
-    vector<Map2d<bool>> kSubPath;
-    vector<Map2d<int>> OnePath;
+    vector<vector<Map2d<bool>>> kSubPath; // k * timeunit * Map2d< True iff cell is visitable at timeunit t on k-sub Path>
+    vector<Map2d<int>> OnePath; // timeunit * Map2d
     int opt_path_length;
 
     string toString() const;
@@ -64,7 +69,7 @@ string Agent::toString() const {
     ss << " -> ";
     ss << "<" << goalpos.x << "," << goalpos.y << ">";
     ss << " ";
-    ss << "Longest Path:" << kSubPath.size();
+    ss << "Longest Path:" << kSubPath[0].size();
     return ss.str();
 }
 
@@ -82,23 +87,23 @@ string Map2string(Map2d<T> m) {
 
 class Datagen {
    public:
+    string _scenfile;
     string _mapfile;
+    string _output_prefix;
+    string _output_dir;
 
     int _height;
     int _width;
-    int _k;
+    int _kmax;
     int _num_agents;
 
-    Map2d<bool> _startLocationMap;
-    Map2d<bool> _goalLocationMap;
     Map2d<bool> _reachableMap;
     Map2d<bool> _obstacleMap;
-    Map2d<int> _collisionMap;
-    Map2d<int> _singlePathCollisionMap;
+    vector<Map2d<int>> _collisionMap;
+    vector<Map2d<int>> _singlePathCollisionMap;
+    vector<int> _n_to_runs;
 
     vector<Agent> _agents;
-
-    bool file2lines(const string& fname, vector<string>& lines);
 
     string lines2agents(const vector<string>& lines);
     void lines2map2d(const vector<string>& lines);
@@ -109,7 +114,10 @@ class Datagen {
 
     void Load(const string& sceneFile);
     void Solve();
-    void ToFile(const string& tensorFile="tensor.pt");
+    void ToFile(const string& tensorFile="tensor.pt"); // Archived
+
+
+    bool isCloserToEdnge(Position A, Position B);
     Map2d<bool> MarkPos(vector<Agent>& agents, bool startpos = 1);
 };
 
@@ -123,7 +131,7 @@ void ReduceMap(Map2d<T>& accumulated, Map2d<U>& increment, T (*func)(T, U)) {
 }
 
 // return false on error
-bool Datagen::file2lines(const string& fname, vector<string>& lines) {
+bool file2lines(const string& fname, vector<string>& lines) {
     ifstream myfile(fname.c_str(), ios_base::in);
     string line;
     if (myfile.is_open()) {
@@ -195,16 +203,19 @@ void Datagen::Load(const string& scenefile) {
         printf("error reading file %s", scenefile.data());
         exit(-1);
     }
-    string mapfile = MAP_LOC + lines2agents(scene_lines);
+    _mapfile = MAP_LOC + lines2agents(scene_lines);
 
     vector<string> map_lines;
-    if (file2lines(mapfile, map_lines) == false) {
-        printf("error reading file %s", mapfile.data());
+    if (file2lines(_mapfile, map_lines) == false) {
+        printf("error reading file %s", _mapfile.data());
         exit(-1);
     }
     lines2map2d(map_lines);
 
-    // cout << Map2string(_reachableMap);
+    for (int n = STEP; n < _agents.size(); n+=STEP){
+        _n_to_runs.push_back(n);
+    }
+
 }
 
 Map2d<int> Datagen::GetDistFromPosMap(Position initPos) {
@@ -249,6 +260,16 @@ void Datagen::PeekAgentPathLength(Agent& agent) {
     }
 }
 
+bool Datagen::isCloserToEdnge(Position A, Position B){
+    int ax = static_cast<int>(A.x);
+    int ay = static_cast<int>(A.y);
+    int bx = static_cast<int>(B.x); 
+    int by = static_cast<int>(B.y);
+    int a_dist_to_edge = min(min( _width - ax, ax  ), min( _height - ay, ay ) );
+    int b_dist_to_edge = min(min( _width - bx, bx  ), min( _height - by, by ) );
+    return a_dist_to_edge < b_dist_to_edge;
+}
+
 std::vector<Position> Datagen::GetAvailMove(Position pos){
     std::vector<Position> res;
     int x = static_cast<int>(pos.x);
@@ -269,6 +290,29 @@ std::vector<Position> Datagen::GetAvailMove(Position pos){
     if (res.size() == 1){
         printf("No Avail Move, that is IMPOSSIBLE!\n");
     }
+
+    struct doComparePos{
+        doComparePos( const Datagen& datagen ):
+        _inner_width(datagen._width),
+        _inner_height(datagen._height)
+        {
+        }
+        const int _inner_width;
+        const int _inner_height;
+
+        bool operator()(Position A, Position B){
+            int ax = static_cast<int>(A.x);
+            int ay = static_cast<int>(A.y);
+            int bx = static_cast<int>(B.x); 
+            int by = static_cast<int>(B.y);
+            int a_dist_to_edge = min(min( _inner_width - ax, ax  ), min( _inner_height - ay, ay ) );
+            int b_dist_to_edge = min(min( _inner_width - bx, bx  ), min( _inner_height - by, by ) );
+            return a_dist_to_edge < b_dist_to_edge;
+        }
+    };
+
+    // DDM: Make the agent path as far from center as possible (as close to one of the edges as possible)
+    sort(res.begin(), res.end(), doComparePos(*this));
     return res;
 }
 
@@ -276,25 +320,35 @@ void Datagen::SolveAgent(Agent& agent) {
     Map2d<int> distanceFromStartMap = GetDistFromPosMap(agent.startpos);
 
     Map2d<int> distanceFromGoalMap = GetDistFromPosMap(agent.goalpos);
-
     // build up agent.kSubPath
-    agent.kSubPath.resize(agent.opt_path_length + _k + 1, vector<vector<bool>>(_height, vector<bool>(_width, 0)));
 
-    for (int stay = 0; stay <= _k; ++stay) {
-        for (size_t i = 0; i < _height; ++i) {
-            for (size_t j = 0; j < _width; ++j) {
+    agent.kSubPath.resize(_kmax,
+        vector<vector<vector<bool>>>(agent.opt_path_length + _kmax + 1, 
+        vector<vector<bool>>(_height, 
+        vector<bool>(_width, 0))));
+
+    
+    // Iterate over cells
+    for (size_t i = 0; i < _height; ++i) {
+        for (size_t j = 0; j < _width; ++j) {
+            
+            // Iterate over k
+            for (int k = 0; k < _kmax; ++k){
                 int distanceFromStart = distanceFromStartMap[i][j];
                 int distanceFromGoal = distanceFromGoalMap[i][j];
-                if (distanceFromStart + distanceFromStart <= agent.opt_path_length + _k) {
-                    agent.kSubPath[distanceFromStart + stay][i][j] = true;
+
+                // the opt path among all path that visit <i,j> will arrivie <i,j> at distanceFromStart, 
+                // if there are excess time, the agent can choose to stay at <i,j> for a few moves
+                for (int stay = 0; stay <= agent.opt_path_length + k - distanceFromStart - distanceFromGoal; ++stay){
+                    agent.kSubPath[k][distanceFromStart + stay][i][j] = true;
                 }
-                // printf("%d",agent.opt_path_length - pathViaPosLength+k);
-                // printf("(stay=%lu) distance from start %d, distance from goal %d, globalSortestPathLength %d\n",stay,distanceFromStart,distanceFromGoal,opt_path_length);
             }
+
         }
     }
+    
 
-    agent.OnePath.resize(agent.opt_path_length + _k + 1, vector<vector<int>>(_height, vector<int>(_width, 0)));
+    agent.OnePath.resize(agent.opt_path_length + 1, vector<vector<int>>(_height, vector<int>(_width, 0)));
     Position pos = agent.startpos;
     for (int t = 0; t <= agent.opt_path_length; ++t){
         // printf("<%lu,%lu> -> <%lu,%lu> @ <%lu,%lu>\n",agent.startpos.x, agent.startpos.y,agent.goalpos.x, agent.goalpos.y, pos.x, pos.y);
@@ -334,91 +388,130 @@ int myMinusOneOnPositive(int a, int b) { return max(0, a - 1); }
 
 // bool check_
 
+string GetOutputFileName(string output_dir, string output_prefix, int num_agents, string feature){
+    string command = "mkdir -p " + output_dir + "/" + to_string(num_agents);
+    system(command.c_str()); // bad practice;
+    string res = output_dir + "/" + to_string(num_agents) + "/" + output_prefix + "_" 
+        + to_string(num_agents) + "_"  
+        + feature 
+        + ".pt";
+    // cout << res << endl;
+    return res;
+}
+
 void Datagen::Solve() {
     cout << "in Solve" << endl;
 
-    if (_agents.size() < _num_agents){
-        printf("Error, scene file does not contain enough agents: got: %lu need: %d\n", _agents.size(), _num_agents);
-    } else{
-        _agents.resize(_num_agents);
+    Map2d<bool> obs_map(_height, vector<bool>(_width, 0));
+    ReduceMap(obs_map, _reachableMap, &myFlip);
+    _obstacleMap = obs_map;
+
+    for (int n : _n_to_runs){
+        vector<Agent>first_n_agents(_agents.begin(), _agents.begin()+n);
+        Map2d<bool> first_n_agents_startLocationMap = MarkPos(first_n_agents, 1);
+        Map2d<bool> first_n_agents_goalLocationMap = MarkPos(first_n_agents, 0);
+
+        // convert and store in Map2d<int>
+        Map2d<int> startmap(_height, vector<int>(_width, 0));
+        Map2d<int> goalmap(_height, vector<int>(_width, 0));
+        Map2d<int> obstaclemap(_height, vector<int>(_width, 0));
+        ReduceMap(startmap, first_n_agents_startLocationMap, &myAdd);
+        ReduceMap(goalmap, first_n_agents_goalLocationMap, &myAdd);
+        ReduceMap(obstaclemap, _obstacleMap, &myAdd);
+        
+
+
+        ToFile2d(startmap, GetOutputFileName(_output_dir, _output_prefix, n, "startLoc"));
+        ToFile2d(goalmap, GetOutputFileName(_output_dir, _output_prefix, n, "goalLoc"));
+        ToFile2d(obstaclemap, GetOutputFileName(_output_dir, _output_prefix, n, "obstacle"));
     }
 
-    _startLocationMap = MarkPos(_agents, 1);
-    _goalLocationMap = MarkPos(_agents, 0);
 
-    Map2d<bool> map(_height, vector<bool>(_width, 0));
-    ReduceMap(map, _reachableMap, &myFlip);
-    _obstacleMap = map;
+
+    size_t tmp = _agents.size();
+
+    _agents.resize(_n_to_runs.back());
 
     // Store the max kSubPath Length among all agents.
     size_t max_kSubPath_size = 0;
     for (auto& ag : _agents) {
         PeekAgentPathLength(ag);
-        max_kSubPath_size = max(max_kSubPath_size, (size_t)ag.opt_path_length+_k);
+        max_kSubPath_size = max(max_kSubPath_size, (size_t)ag.opt_path_length + _kmax);
         // printf("<%lu,%lu> -> <%lu,%lu> opt = %d\n",ag.startpos.x,ag.startpos.y,ag.goalpos.x,ag.goalpos.y,ag.opt_path_length);
     }
 
-    printf("_agents.size() = %lu ; max_kSubPath_size = %lu\n" ,_agents.size(),max_kSubPath_size);
-    
-    fflush(stdout);
 
+    printf("_agents.size() = %lu -> %lu ; max_kSubPath_size = %lu\n", tmp, _agents.size(), max_kSubPath_size);
+     
+    /* ######### TODO ############*/
     // Start working on kSubPath collision
-    _collisionMap.resize(_height, vector<int>(_width, 0));
-    vector<Map2d<int>> timeCollision(max_kSubPath_size, vector<vector<int>>(_height, vector<int>(_width, 0)));
+    // _collisionMap.resize(_height, vector<int>(_width, 0));
+
+    vector<vector<Map2d<int>>> kTimeCollision(_kmax + 1, 
+        vector<vector<vector<int>>>(max_kSubPath_size, 
+        vector<vector<int>>(_height, 
+        vector<int>(_width, 0))));
     
-    // If an agent visit some cell at time = i, add mark the cell on timeCollision[i]
-    for (auto& ag : _agents) {
-        SolveAgent(ag);
-        // Agents stays at their goal location once arrived.
-        while (ag.kSubPath.size() < max_kSubPath_size) {
-            ag.kSubPath.push_back(ag.kSubPath.back());
+
+    Map2d<int> singlePathCollision(_height, vector<int>(_width, 0));
+
+    
+    
+    // If an agent visit some cell on (k)SubPath at time = i , mark the cell on timeCollision[k][i]
+    for (int i = 0; i < static_cast<int>(_agents.size()); i+=STEP){
+        for (int j = 0; j < STEP; ++j){
+            Agent ag = _agents[i+j];
+        
+            SolveAgent(ag);
+
+            //work out kSubPath data and stores in kTimeCollision
+            for (int k = 0; k < _kmax; ++k){
+                while (ag.kSubPath[k].size() < max_kSubPath_size){
+                    ag.kSubPath[k].push_back(ag.kSubPath[k].back());
+                }
+                
+                for (int t = 0; t < static_cast<int>(max_kSubPath_size); ++t){
+                    ReduceMap(kTimeCollision[k][t], ag.kSubPath[k][t], &myAdd);
+                }
+
+
+            }
+            ag.kSubPath.clear();
+            ag.kSubPath.shrink_to_fit();
+
+            //work out SinglePath data and stores in singlePathCollision
+            for (int t = 0; t < static_cast<int>(ag.opt_path_length+1); ++t){
+                ReduceMap(singlePathCollision, ag.OnePath[t], &myAdd);
+            }
+            ag.OnePath.clear();
+            ag.OnePath.shrink_to_fit();
         }
-        // timeCollision[i] += ag.kSubPath[i]
-        for (size_t i = 0; i < max_kSubPath_size; ++i) {
-            ReduceMap(timeCollision[i], ag.kSubPath[i], &myAdd);
+
+        // save kSupPath Collision to k seperate tensor files
+        vector<vector<Map2d<int>>> kTimeCollision_tmp(kTimeCollision);
+        for (int k = 0; k < _kmax; ++k){
+            Map2d<int> kCollision(_height, vector<int>(_width, 0));
+            for (int t = 0; t < static_cast<int>(max_kSubPath_size); ++t){
+                ReduceMap(kTimeCollision_tmp[k][t], kTimeCollision_tmp[k][t], &myMinusOneOnPositive);
+                ReduceMap(kCollision, kTimeCollision_tmp[k][t], &myAdd);
+            }
+            ToFile2d(kCollision, GetOutputFileName(_output_dir, _output_prefix, i+10, to_string(k) + "subPathColl"));
         }
-        // Clean up memory
-        ag.kSubPath.clear();
-        ag.kSubPath.shrink_to_fit();
+
+        // save SinglePathCollision to a file
+        ToFile2d(singlePathCollision, GetOutputFileName(_output_dir, _output_prefix, i+10, "singlePathHeat"));
+
     }
 
     printf("done with _collisionMap\n");
-
-    // _collisionMap = SUM( collision over time )
-    for (size_t i = 0; i < max_kSubPath_size; ++i){
-        ReduceMap(timeCollision[i], timeCollision[i], &myMinusOneOnPositive);
-        ReduceMap(_collisionMap, timeCollision[i], &myAdd);
-    }
-    
-    // start working on _singlePathCollisionMap (Like that in DDM)
-    _singlePathCollisionMap.resize(_height, vector<int>(_width, 0));
-    vector<Map2d<int>> timeSinglePathCollision(max_kSubPath_size, vector<vector<int>>(_height, vector<int>(_width, 0)));
-    for (auto& ag : _agents) {
-        for (size_t t = 0; t < ag.opt_path_length; ++t){
-            ReduceMap(timeSinglePathCollision[t], ag.OnePath[t], &myAdd);
-        }
-        ag.OnePath.clear();
-        ag.OnePath.shrink_to_fit();
-    }
-    for (size_t t = 0; t<max_kSubPath_size; ++t){
-        ReduceMap(_singlePathCollisionMap, timeSinglePathCollision[t], &myAdd);
-    }
-
-
-    if (PRINT_RESULT){
-        cout << "///////// _collisionMap //////////////\n";
-        cout << Map2string(_collisionMap);
-        cout << "////////// _singlePathCollisionMap /////////////\n";
-        cout << Map2string(_singlePathCollisionMap);
-    }
 
     fflush(stdout);
 }
 
 template <typename T>
-vector<T> linearize2d(const vector<vector<T>>& vec_vec) {
+vector<T> linearize2d(const vector<vector<T>>& vec2) {
     vector<T> vec;
-    for (const auto& v : vec_vec) {
+    for (const auto& v : vec2) {
         for (auto d : v) {
             vec.push_back(d);
         }
@@ -440,111 +533,46 @@ vector<T> linearize3d(const vector<vector<vector<T>>>& v3) {
 }
 
 
-void Datagen::ToFile(const string& tensorFile) {
-    Map2d<int> startLocationMap(_height, vector<int>(_width, 0));
-    Map2d<int> goalLocationMap(_height, vector<int>(_width, 0));
-    Map2d<int> obstacleMap(_height, vector<int>(_width, 0));
-    Map2d<int> zerosMap(_height, vector<int>(_width, 0));
-    Map2d<int> collisionMap(_height, vector<int>(_width, 0));
-    Map2d<int> singlePathCollisionMap(_height, vector<int>(_width, 0));
-
-    ReduceMap(startLocationMap, _startLocationMap, &myAdd);
-    ReduceMap(goalLocationMap, _goalLocationMap, &myAdd);
-    ReduceMap(obstacleMap, _obstacleMap, &myAdd);
-    ReduceMap(collisionMap, _collisionMap, &myAdd);
-    ReduceMap(singlePathCollisionMap, _singlePathCollisionMap, &myAdd);
-
-    // vector<Map2d<int>> tmp = {zerosMap,zerosMap,zerosMap,zerosMap};
-    vector<Map2d<int>> layers = {startLocationMap,goalLocationMap,obstacleMap,collisionMap,singlePathCollisionMap};
-
+// convert a 2d vector to tensor
+void ToFile2d(const vector<vector<int>>& vec2, const string& tensorFile){
     auto options = torch::TensorOptions().dtype(torch::kInt32).layout(torch::kStrided);
-
-    auto blob3d = layers;
-    auto tensor3d = torch::empty((int)blob3d.size() * _height * _width, options);
-    int* data = tensor3d.data_ptr<int>();
-    for (const auto& i : blob3d) {
+    int height = static_cast<int>(vec2.size());
+    int width = static_cast<int>(vec2[0].size());
+    auto tensor2d = torch::empty(height * width, options);
+    int* data = tensor2d.data_ptr<int>();
+    for (const auto& i : vec2) {
         for (const auto& j : i) {
-            for (const auto& k : j) {
-                *data++ = k;
-            }
+            *data++ = j;
         }
     }
 
-    auto tensor3d_bytes = torch::jit::pickle_save(tensor3d.resize_({(int)layers.size(),_height,_width}));
+    auto tensor2d_bytes = torch::jit::pickle_save(tensor2d.resize_({height,width}));
     std::ofstream fout(tensorFile, std::ios::out | std::ios::binary);
-    fout.write(tensor3d_bytes.data(), tensor3d_bytes.size());
+    fout.write(tensor2d_bytes.data(), tensor2d_bytes.size());
     fout.close();
+}
 
-    // for (const auto& m : layers){
-    //     cout << Map2string(m) << endl;
-    //     torch::Tensor t = torch::from_blob(linearize2d(m).data(),{_height,_width},options);
-    //     cout << t << endl << endl;;
-    // }
-
-    // auto bytes = torch::jit::pickle_save(torch::from_blob(linearize2d(collisionMap).data(),{_height,_width},options));
-    // std::ofstream fout0("datagen2d.pt", std::ios::out | std::ios::binary);
-    // fout0.write(bytes.data(), bytes.size());
-    // fout0.close();
-
-    // torch::Tensor tensor3d = torch::from_blob(linearize3d(layers).data(), {(int)layers.size(),_height,_width}, options);
-
-    // // Do nothing for now;
-    // Map2d<int> dummy(2,vector<int>(4,0));
-    // int i = 1;
-    // for (auto &r:dummy){
-    //     for (auto & x : r){
-    //         x = i++;
-    //     }
-    // }
-    // vector<int> flat = linearize2d(dummy);
-    // cout << Map2string(dummy) << endl;;
-
-    // auto options = torch::TensorOptions().dtype(torch::kInt32);
-    // torch::Tensor tharray = torch::from_blob(flat.data(), {2,4}, options);
-    // std::cout << tharray << std::endl;
-    // torch::Tensor tensor = torch::rand({2, 4});
-    // std::cout << tensor << std::endl;
-
-
-    // std::vector<torch::Tensor> tensor_vec = { tharray,tensor };
-    // torch::save(tensor_vec, "my_tensor_vec.pt");
-    // torch::save(tharray, "my_tensor.pt");
-
-
-    // auto bytes = torch::jit::pickle_save(tharray);
-    // std::ofstream fout("pickle_saved_tensor.pt", std::ios::out | std::ios::binary);
-    // fout.write(bytes.data(), bytes.size());
-    // fout.close();
-
-    // bytes = torch::jit::pickle_save(tensor_vec);
-    // std::ofstream fout1("pickle_saved_tensor_vec.pt", std::ios::out | std::ios::binary);
-    // fout1.write(bytes.data(), bytes.size());
-    // fout1.close();
-    
+void Datagen::ToFile(const string& tensorFile) {
+    cout << "Datagen::ToFile(const string& tensorFile) -> Commented out" << endl; 
 }
 
 int main(int argc, char* argv[]) {
     if (argc != 5) {
         printf("need argc == %d, got %d", 5, argc);
-        printf("useage: ./datagen <scene_file> <map_dir> <num_of_agents> <output_tensor_file>");
+        printf("useage: ./datagen <scene_file> <map_dir> <output_dir> <output_file_prefix>\n");
         exit(-1);
     }
 
     Datagen datagen;
-    datagen._num_agents = stoi(argv[3]);
 
     MAP_LOC = argv[2];
-    string scen_file = argv[1];
+    datagen._scenfile = argv[1];
+    datagen._output_dir = argv[3];
+    datagen._output_prefix = argv[4];
     cout << "Load()" << endl;
-    datagen.Load(scen_file);
 
-    datagen._k = 2;
+    datagen.Load(datagen._scenfile);
+    datagen._kmax = 3;
     cout << "Solve()" << endl;
     datagen.Solve();
-
-    string tensor_file = argv[4];
-    cout << "ToFile()" << endl;
-    datagen.ToFile(tensor_file);
-
-    // Map2d<bool>
 }
