@@ -96,6 +96,7 @@ class Datagen {
     int _width;
     int _kmax;
     int _num_agents;
+    int _num_agents_cap;
 
     Map2d<bool> _reachableMap;
     Map2d<bool> _obstacleMap;
@@ -212,7 +213,7 @@ void Datagen::Load(const string& scenefile) {
     }
     lines2map2d(map_lines);
 
-    for (int n = STEP; n < _agents.size(); n+=STEP){
+    for (int n = STEP; n <= min(_agents.size(), static_cast<size_t>(_num_agents_cap)); n+=STEP){
         _n_to_runs.push_back(n);
     }
 
@@ -557,9 +558,9 @@ void Datagen::ToFile(const string& tensorFile) {
 }
 
 int main(int argc, char* argv[]) {
-    if (argc != 5) {
-        printf("need argc == %d, got %d", 5, argc);
-        printf("useage: ./datagen <scene_file> <map_dir> <output_dir> <output_file_prefix>\n");
+    if (argc != 6) {
+        printf("need argc == %d, got %d", 6, argc);
+        printf("useage: ./datagen <scene_file> <map_dir> <output_dir> <output_file_prefix> <num_agents_cap>\n");
         exit(-1);
     }
 
@@ -569,6 +570,7 @@ int main(int argc, char* argv[]) {
     datagen._scenfile = argv[1];
     datagen._output_dir = argv[3];
     datagen._output_prefix = argv[4];
+    datagen._num_agents_cap = stoi(argv[5]);
     cout << "Load()" << endl;
 
     datagen.Load(datagen._scenfile);
