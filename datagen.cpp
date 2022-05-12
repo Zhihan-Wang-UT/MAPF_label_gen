@@ -323,6 +323,8 @@ void Datagen::SolveAgent(Agent& agent) {
     Map2d<int> distanceFromGoalMap = GetDistFromPosMap(agent.goalpos);
     // build up agent.kSubPath
 
+
+    //TODO: remove
     agent.kSubPath.resize(_kmax,
         vector<vector<vector<bool>>>(agent.opt_path_length + _kmax + 1, 
         vector<vector<bool>>(_height, 
@@ -372,10 +374,6 @@ void Datagen::SolveAgent(Agent& agent) {
         }
     }
 
-
-    // for (Map2d<bool> m : agent.kSubPath){
-    //     cout << Map2string(m) << endl;
-    // }
 }
 
 bool myFlip(bool a, bool b) { return !b; }
