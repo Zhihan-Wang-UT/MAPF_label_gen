@@ -6,7 +6,7 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${TORCH_CXX_FLAGS}")
 
 add_executable(datagen datagen.cpp)
 target_link_libraries(datagen "${TORCH_LIBRARIES}")
-set_property(TARGET datagen PROPERTY CXX_STANDARD 14)
+set_property(TARGET datagen PROPERTY CXX_STANDARD 17)
 
 # The following code block is suggested to be used on Windows.
 # According to https://github.com/pytorch/pytorch/issues/25457,
