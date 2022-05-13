@@ -79,10 +79,9 @@ def run(file_start = 0, file_end = 1650):
 
     f = open(logFile, 'w')
 
-    file_and_num_agent_cap_df = pd.read_csv('scen2num_agent_df_0326.csv')
+    file_and_num_agent_cap_df = pd.read_csv('scen2num_agent_df_0512.csv')
 
     # file_and_attributes = [(x,True) for x in listdir(scen_even_dir)] + [(x,False) for x in listdir(scen_random_dir)]
-    print(file_and_num_agent_cap_df)
     
 
     for _, row in file_and_num_agent_cap_df.iloc[file_start:file_end].iterrows():
@@ -91,10 +90,8 @@ def run(file_start = 0, file_end = 1650):
         is_even = test_even(file)
         out_tensor_prefix = f'{file.replace(".scen","")}'
         res = run_tensorgen_cpp_v3(file, is_even, out_tensor_prefix, num_agents_cap)
-        print(res)
         res_stdout = res.stdout.decode("utf-8").replace('\n','')
         res_info = f'"{" ".join(res.args)}"'
-        print(res_info)
         runinfo = f'{i}, {file}, {out_tensor_prefix}, {res_info}, "{res_stdout}"\n'
         f.write(runinfo)
         f.flush()
