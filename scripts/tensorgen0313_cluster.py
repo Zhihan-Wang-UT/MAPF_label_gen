@@ -93,7 +93,6 @@ def run(file_start = 0, file_end = 1650):
         res_stdout = res.stdout.decode("utf-8").replace('\n','')
         res_info = f'"{" ".join(res.args)}"'
         runinfo = f'{i}, {file}, {out_tensor_prefix}, {res_info}, "{res_stdout}"\n'
-        print(runinfo)
         f.write(runinfo)
         f.flush()
         i += 1
