@@ -36,6 +36,7 @@ def run_scen(scen_file, is_even, runtime=300, algo='CBS', topk=50, csv_file='tes
     _scenfile = (scen_even_dir if is_even else scen_random_dir) + scen_file
     commands = [f'{lns_dir}lns', '-m', f'{_mapfile}', '-a', f'{_scenfile}',
      '-o', csv_file, '-k', f'{topk}', '-t', f'{runtime}', f'--initAlgo={algo}']
+    print(" ".join(commands))
     result = subprocess.run(env + commands, capture_output=True)
     return result.stdout.decode("utf-8").replace('\n','')
 a = run_scen('Berlin_1_256-even-1.scen', True, 60, topk=10)
