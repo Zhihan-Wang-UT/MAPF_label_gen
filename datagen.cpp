@@ -502,7 +502,7 @@ void Datagen::Solve() {
             //     ReduceMap(kCollision, kTimeCollision_tmp[k][t], &myAdd);
             // }
             // ToFile2d(kCollision, GetOutputFileName(_output_dir, _output_prefix, i+10, to_string(k) + "subPathColl"));
-            ToFile2d(kTimeStacked[k], GetOutputFileName(_output_dir, _output_prefix, i+10, to_string(k) + "subPathColl"));
+            ToFile2d(kTimeStacked[k], GetOutputFileName(_output_dir, _output_prefix, i+10, to_string(k) + "subPathStack"));
 
         }
 
