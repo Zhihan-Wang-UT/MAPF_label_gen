@@ -581,7 +581,7 @@ int main(int argc, char* argv[]) {
     cout << "Load()" << endl;
 
     datagen.Load(datagen._scenfile);
-    datagen._kmax = 3;
+    datagen._kmax = 1;
     cout << "Solve()" << endl;
     datagen.Solve();
 }
