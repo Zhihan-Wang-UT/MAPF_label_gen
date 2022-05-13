@@ -351,28 +351,28 @@ void Datagen::SolveAgent(Agent& agent) {
     }
     
 
-    // agent.OnePath.resize(agent.opt_path_length + 1, vector<vector<int>>(_height, vector<int>(_width, 0)));
-    // Position pos = agent.startpos;
-    // for (int t = 0; t <= agent.opt_path_length; ++t){
-    //     // printf("<%lu,%lu> -> <%lu,%lu> @ <%lu,%lu>\n",agent.startpos.x, agent.startpos.y,agent.goalpos.x, agent.goalpos.y, pos.x, pos.y);
-    //     agent.OnePath[t][pos.x][pos.y] = 1;
-    //     if (pos.x == agent.goalpos.x && pos.y == agent.goalpos.y){
-    //         break;
-    //     }
-    //     bool updated = false;
-    //     for (auto& next_pos : GetAvailMove(pos)){
-    //         // printf("\t t = %d <%lu,%lu> from start:%d, from end:%d\n",t, next_pos.x, next_pos.y, distanceFromStartMap[next_pos.x][next_pos.y], distanceFromGoalMap[next_pos.x][next_pos.y]);
-    //         if (distanceFromStartMap[next_pos.x][next_pos.y] == t+1 && distanceFromGoalMap[next_pos.x][next_pos.y] == agent.opt_path_length-t-1){
-    //             pos = next_pos;
-    //             updated = true;
-    //             break;
-    //         }
-    //     }
-    //     if (!updated){
-    //         printf("Look here! 307, something went wrong, not next_pos is selected \n");
-    //         break;
-    //     }
-    // }
+    agent.OnePath.resize(agent.opt_path_length + 1, vector<vector<int>>(_height, vector<int>(_width, 0)));
+    Position pos = agent.startpos;
+    for (int t = 0; t <= agent.opt_path_length; ++t){
+        // printf("<%lu,%lu> -> <%lu,%lu> @ <%lu,%lu>\n",agent.startpos.x, agent.startpos.y,agent.goalpos.x, agent.goalpos.y, pos.x, pos.y);
+        agent.OnePath[t][pos.x][pos.y] = 1;
+        if (pos.x == agent.goalpos.x && pos.y == agent.goalpos.y){
+            break;
+        }
+        bool updated = false;
+        for (auto& next_pos : GetAvailMove(pos)){
+            // printf("\t t = %d <%lu,%lu> from start:%d, from end:%d\n",t, next_pos.x, next_pos.y, distanceFromStartMap[next_pos.x][next_pos.y], distanceFromGoalMap[next_pos.x][next_pos.y]);
+            if (distanceFromStartMap[next_pos.x][next_pos.y] == t+1 && distanceFromGoalMap[next_pos.x][next_pos.y] == agent.opt_path_length-t-1){
+                pos = next_pos;
+                updated = true;
+                break;
+            }
+        }
+        if (!updated){
+            printf("Look here! 307, something went wrong, not next_pos is selected \n");
+            break;
+        }
+    }
 
 }
 
@@ -401,29 +401,29 @@ string GetOutputFileName(string output_dir, string output_prefix, int num_agents
 void Datagen::Solve() {
     cout << "in Solve" << endl;
 
-    // Map2d<bool> obs_map(_height, vector<bool>(_width, 0));
-    // ReduceMap(obs_map, _reachableMap, &myFlip);
-    // _obstacleMap = obs_map;
+    Map2d<bool> obs_map(_height, vector<bool>(_width, 0));
+    ReduceMap(obs_map, _reachableMap, &myFlip);
+    _obstacleMap = obs_map;
 
-    // for (int n : _n_to_runs){
-    //     vector<Agent>first_n_agents(_agents.begin(), _agents.begin()+n);
-    //     Map2d<bool> first_n_agents_startLocationMap = MarkPos(first_n_agents, 1);
-    //     Map2d<bool> first_n_agents_goalLocationMap = MarkPos(first_n_agents, 0);
+    for (int n : _n_to_runs){
+        vector<Agent>first_n_agents(_agents.begin(), _agents.begin()+n);
+        Map2d<bool> first_n_agents_startLocationMap = MarkPos(first_n_agents, 1);
+        Map2d<bool> first_n_agents_goalLocationMap = MarkPos(first_n_agents, 0);
 
-    //     // convert and store in Map2d<int>
-    //     Map2d<int> startmap(_height, vector<int>(_width, 0));
-    //     Map2d<int> goalmap(_height, vector<int>(_width, 0));
-    //     Map2d<int> obstaclemap(_height, vector<int>(_width, 0));
-    //     ReduceMap(startmap, first_n_agents_startLocationMap, &myAdd);
-    //     ReduceMap(goalmap, first_n_agents_goalLocationMap, &myAdd);
-    //     ReduceMap(obstaclemap, _obstacleMap, &myAdd);
+        // convert and store in Map2d<int>
+        Map2d<int> startmap(_height, vector<int>(_width, 0));
+        Map2d<int> goalmap(_height, vector<int>(_width, 0));
+        Map2d<int> obstaclemap(_height, vector<int>(_width, 0));
+        ReduceMap(startmap, first_n_agents_startLocationMap, &myAdd);
+        ReduceMap(goalmap, first_n_agents_goalLocationMap, &myAdd);
+        ReduceMap(obstaclemap, _obstacleMap, &myAdd);
         
 
 
-    //     ToFile2d(startmap, GetOutputFileName(_output_dir, _output_prefix, n, "startLoc"));
-    //     ToFile2d(goalmap, GetOutputFileName(_output_dir, _output_prefix, n, "goalLoc"));
-    //     ToFile2d(obstaclemap, GetOutputFileName(_output_dir, _output_prefix, n, "obstacle"));
-    // }
+        ToFile2d(startmap, GetOutputFileName(_output_dir, _output_prefix, n, "startLoc"));
+        ToFile2d(goalmap, GetOutputFileName(_output_dir, _output_prefix, n, "goalLoc"));
+        ToFile2d(obstaclemap, GetOutputFileName(_output_dir, _output_prefix, n, "obstacle"));
+    }
 
 
 
@@ -446,17 +446,13 @@ void Datagen::Solve() {
     // Start working on kSubPath collision
     // _collisionMap.resize(_height, vector<int>(_width, 0));
 
-    // vector<vector<Map2d<int>>> kTimeCollision(_kmax + 1, 
-    //     vector<vector<vector<int>>>(max_kSubPath_size, 
-    //     vector<vector<int>>(_height, 
-    //     vector<int>(_width, 0))));
-
-    vector<vector<vector<int>>> kTimeStacked(_kmax + 1, 
+    vector<vector<Map2d<int>>> kTimeCollision(_kmax + 1, 
+        vector<vector<vector<int>>>(max_kSubPath_size, 
         vector<vector<int>>(_height, 
-        vector<int>(_width, 0)));
+        vector<int>(_width, 0))));
     
 
-    // Map2d<int> singlePathCollision(_height, vector<int>(_width, 0));
+    Map2d<int> singlePathCollision(_height, vector<int>(_width, 0));
 
     
     
@@ -474,40 +470,35 @@ void Datagen::Solve() {
                 }
                 
                 for (int t = 0; t < static_cast<int>(max_kSubPath_size); ++t){
-                    // ReduceMap(kTimeCollision[k][t], ag.kSubPath[k][t], &myAdd);
-                    ReduceMap(kTimeStacked[k], ag.kSubPath[k][t], &myAdd);
+                    ReduceMap(kTimeCollision[k][t], ag.kSubPath[k][t], &myAdd);
                 }
 
 
             }
-
-            
             ag.kSubPath.clear();
             ag.kSubPath.shrink_to_fit();
 
-            // //work out SinglePath data and stores in singlePathCollision
-            // for (int t = 0; t < static_cast<int>(ag.opt_path_length+1); ++t){
-            //     ReduceMap(singlePathCollision, ag.OnePath[t], &myAdd);
-            // }
-            // ag.OnePath.clear();
-            // ag.OnePath.shrink_to_fit();
+            //work out SinglePath data and stores in singlePathCollision
+            for (int t = 0; t < static_cast<int>(ag.opt_path_length+1); ++t){
+                ReduceMap(singlePathCollision, ag.OnePath[t], &myAdd);
+            }
+            ag.OnePath.clear();
+            ag.OnePath.shrink_to_fit();
         }
 
         // save kSupPath Collision to k seperate tensor files
-        // vector<vector<Map2d<int>>> kTimeCollision_tmp(kTimeCollision);
+        vector<vector<Map2d<int>>> kTimeCollision_tmp(kTimeCollision);
         for (int k = 0; k < _kmax; ++k){
-            // Map2d<int> kCollision(_height, vector<int>(_width, 0));
-            // for (int t = 0; t < static_cast<int>(max_kSubPath_size); ++t){
-            //     ReduceMap(kTimeCollision_tmp[k][t], kTimeCollision_tmp[k][t], &myMinusOneOnPositive);
-            //     ReduceMap(kCollision, kTimeCollision_tmp[k][t], &myAdd);
-            // }
-            // ToFile2d(kCollision, GetOutputFileName(_output_dir, _output_prefix, i+10, to_string(k) + "subPathColl"));
-            ToFile2d(kTimeStacked[k], GetOutputFileName(_output_dir, _output_prefix, i+10, to_string(k) + "subPathColl"));
-
+            Map2d<int> kCollision(_height, vector<int>(_width, 0));
+            for (int t = 0; t < static_cast<int>(max_kSubPath_size); ++t){
+                ReduceMap(kTimeCollision_tmp[k][t], kTimeCollision_tmp[k][t], &myMinusOneOnPositive);
+                ReduceMap(kCollision, kTimeCollision_tmp[k][t], &myAdd);
+            }
+            ToFile2d(kCollision, GetOutputFileName(_output_dir, _output_prefix, i+10, to_string(k) + "subPathColl"));
         }
 
-        // // save SinglePathCollision to a file
-        // ToFile2d(singlePathCollision, GetOutputFileName(_output_dir, _output_prefix, i+10, "singlePathHeat"));
+        // save SinglePathCollision to a file
+        ToFile2d(singlePathCollision, GetOutputFileName(_output_dir, _output_prefix, i+10, "singlePathHeat"));
 
     }
 
