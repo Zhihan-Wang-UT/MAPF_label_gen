@@ -79,7 +79,9 @@ def run(file_start = 0, file_end = 1650):
 
     f = open(logFile, 'w')
 
-    file_and_num_agent_cap_df = pd.read_csv('scen2num_agent_df_0512.csv')
+    file_and_num_agent_cap_df = pd.read_csv('scen2num_agent_df_0331.csv')
+
+    print(f"out of {len(file_and_num_agent_cap_df)} files")
 
     # file_and_attributes = [(x,True) for x in listdir(scen_even_dir)] + [(x,False) for x in listdir(scen_random_dir)]
     
