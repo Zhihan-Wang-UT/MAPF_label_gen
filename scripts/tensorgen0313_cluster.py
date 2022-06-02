@@ -79,7 +79,7 @@ def run(file_start = 0, file_end = 1650):
 
     f = open(logFile, 'w')
 
-    file_and_num_agent_cap_df = pd.read_csv('scen2num_agent_df_0331.csv')
+    file_and_num_agent_cap_df = pd.read_csv('scen2num_agent_df_0601.csv')
 
     print(f"out of {len(file_and_num_agent_cap_df)} files")
 

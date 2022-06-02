@@ -495,7 +495,7 @@ void Datagen::Solve() {
 
         // save kSupPath Collision to k seperate tensor files
         // vector<vector<Map2d<int>>> kTimeCollision_tmp(kTimeCollision);
-        for (int k = 1; k < _kmax; ++k){
+        for (int k = 0; k < _kmax; ++k){
             // Map2d<int> kCollision(_height, vector<int>(_width, 0));
             // for (int t = 0; t < static_cast<int>(max_kSubPath_size); ++t){
             //     ReduceMap(kTimeCollision_tmp[k][t], kTimeCollision_tmp[k][t], &myMinusOneOnPositive);
