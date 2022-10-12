@@ -502,7 +502,7 @@ void Datagen::Solve() {
             //     ReduceMap(kCollision, kTimeCollision_tmp[k][t], &myAdd);
             // }
             // ToFile2d(kCollision, GetOutputFileName(_output_dir, _output_prefix, i+10, to_string(k) + "subPathColl"));
-            ToFile2d(kTimeStacked[k], GetOutputFileName(_output_dir, _output_prefix, i+10, to_string(k) + "subPathColl"));
+            ToFile2d(kTimeStacked[k], GetOutputFileName(_output_dir, _output_prefix, i+10, to_string(k) + "subPathStack"));
 
         }
 
@@ -581,7 +581,7 @@ int main(int argc, char* argv[]) {
     cout << "Load()" << endl;
 
     datagen.Load(datagen._scenfile);
-    datagen._kmax = 1;
+    datagen._kmax = 3;
     cout << "Solve()" << endl;
     datagen.Solve();
 }
